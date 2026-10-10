@@ -1,0 +1,177 @@
+"""Caching — 3 layers (plan/CACHING.md).
+
+Layer 1 semantic (free users)  — KV `sem:{model}:{user_id}`, cos >= 0.97, TTL 24h
+Layer 3 exact response        — KV `resp:{hash}` global, TTL 1h
+Layer 2 (provider prompt caching) is a prompt-design concern, not code here.
+
+Cache hit => does NOT consume user quota (handled in main.py by checking cache
+before calling quota.inc).
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import time
+
+from . import contracts as C
+
+
+# --------------------------------------------------------------------------- #
+# Layer 3 — exact response cache (global)
+# --------------------------------------------------------------------------- #
+def norm_text(text: str) -> str:
+    """Canonicalize user text for cache keys: case/punctuation/spacing
+    variants of the same title collapse to one entry (free-tier lever —
+    every merged variant is a saved API call)."""
+    import re
+    t = re.sub(r"[^\w\s]", " ", (text or "").lower())
+    return " ".join(t.split())
+
+
+def _jaccard(a: str, b: str) -> float:
+    """Word-overlap similarity in [0,1]. Short-title embeddings inflate
+    cosine on shared filler words ("my first car" vs "my first boyfriend"
+    scores ~0.9+); word overlap exposes the topic mismatch."""
+    wa, wb = set(norm_text(a).split()), set(norm_text(b).split())
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def exact_key(model: str, messages: list, temperature: float, max_tokens: int) -> str:
+    """Deterministic hash of the stable request shape (model, messages, params)."""
+    stable = json.dumps(
+        {"model": model, "messages": messages, "temperature": temperature,
+         "max_tokens": max_tokens},
+        sort_keys=True,
+    )
+    return hashlib.sha256(stable.encode()).hexdigest()
+
+
+async def get_exact(env, key: str) -> str | None:
+    try:
+        val = await env.KV.get(f"{C.KV_RESP}{key}", "text")
+        return val if val else None
+    except Exception:
+        return None
+
+
+async def store_exact(env, key: str, content: str) -> None:
+    try:
+        await env.KV.put(f"{C.KV_RESP}{key}", content, expiration_ttl=C.RESP_CACHE_TTL_S)
+    except Exception:
+        pass  # cache failure never fails the request
+
+
+# --------------------------------------------------------------------------- #
+# Layer 1 — semantic cache (per free user)
+# --------------------------------------------------------------------------- #
+def _embedding_from_model(resp) -> list[float] | None:
+    # Workers AI returns a JsDict wrapper: {"data": [[...]]}. Handle that plus
+    # other plausible shapes without guessing per-model.
+    vec = _embedding_from_any(resp)
+    return vec
+
+
+def _embedding_from_any(resp):
+    # Workers AI embedding responses vary by model/runtime:
+    #   bare list [[...]], {"data": [[...]]}, {"data": [{"embedding": [...]}]},
+    #   {"embedding": [...]}, {"result": [...]}
+    if isinstance(resp, list):
+        if resp and isinstance(resp[0], (int, float)):
+            return resp
+        if resp and isinstance(resp[0], list):
+            return resp[0]
+        if resp and isinstance(resp[0], dict):
+            return resp[0].get("embedding")
+        return None
+    if isinstance(resp, dict):
+        for key in ("data", "result", "embedding", "vectors"):
+            val = resp.get(key)
+            if not val:
+                continue
+            if isinstance(val, dict):
+                inner = val.get("embedding") or val.get("result")
+                if isinstance(inner, list):
+                    return inner[0] if inner and isinstance(inner[0], list) else inner
+            elif isinstance(val, list):
+                if val and isinstance(val[0], dict):
+                    return val[0].get("embedding")
+                if val and isinstance(val[0], list):
+                    return val[0]
+                return val
+        return None
+    return None
+
+
+async def _embed(env, text: str) -> list[float] | None:
+    """Workers AI bge-small embedding. Returns None on failure."""
+    try:
+        resp = await env.AI.run(
+            C.EMBEDDING_MODEL,
+            {"text": [text[:8000]]},
+        )
+        vec = _embedding_from_model(resp)
+        return vec if vec else None
+    except Exception as e:
+        print(f"[cache] _embed failed: {type(e).__name__}: {e}", flush=True)
+        return None
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(x * x for x in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+async def get_semantic(env, user_id: str, model: str, text: str) -> str | None:
+    """Return cached response if an entry passes BOTH similarity gates:
+    cosine >= SEM_COSINE_THRESHOLD and word-overlap >= SEM_JACCARD_MIN.
+    The second gate exists because short titles inflate cosine similarity
+    on filler words and return wrong-topic results."""
+    try:
+        vec = await _embed(env, text)
+        if not vec:
+            return None
+        key = f"{C.KV_SEM}{model}:{user_id}"
+        raw = await env.KV.get(key, "text")
+        if not raw:
+            return None
+        entries = json.loads(raw)
+        best, best_sim = None, 0.0
+        for e in entries:
+            sim = _cosine(vec, e.get("embedding") or [])
+            if sim > best_sim:
+                best, best_sim = e, sim
+        if best is None or best_sim < C.SEM_COSINE_THRESHOLD:
+            return None
+        stored_text = best.get("text") or ""
+        if not stored_text:
+            return None  # legacy entry (pre-guard): cannot verify topic match
+        if _jaccard(text, stored_text) < C.SEM_JACCARD_MIN:
+            return None  # embedding says close, words say different topic
+        return best.get("response")
+    except Exception:
+        return None
+
+
+async def store_semantic(env, user_id: str, model: str, text: str, content: str) -> None:
+    try:
+        vec = await _embed(env, text)
+        if not vec:
+            return
+        key = f"{C.KV_SEM}{model}:{user_id}"
+        raw = await env.KV.get(key, "text")
+        entries = json.loads(raw) if raw else []
+        entries.append({"embedding": vec, "response": content, "text": text, "ts": time.time()})
+        # ponytail: O(n) scan, capped at 500; upgrade to vector index if exceeded
+        entries = entries[-500:]
+        await env.KV.put(key, json.dumps(entries), expiration_ttl=C.SEM_CACHE_TTL_S)
+    except Exception as e:
+        print(f"[cache] store_semantic failed: {type(e).__name__}: {e}", flush=True)

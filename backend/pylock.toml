@@ -1,0 +1,48 @@
+lock-version = "1.0"
+created-by = "uv"
+requires-python = ">=3.13.2"
+
+[[packages]]
+name = "annotated-doc"
+version = "0.0.5"
+wheels = [{ url = "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl", upload-time = 2026-07-28T13:50:57Z, size = 5302, hashes = { sha256 = "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101" } }]
+
+[[packages]]
+name = "anyio"
+version = "4.14.2"
+wheels = [{ url = "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl", upload-time = 2026-07-12T20:29:05Z, size = 125813, hashes = { sha256 = "9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494" } }]
+
+[[packages]]
+name = "fastapi"
+version = "0.125.0"
+wheels = [{ url = "https://files.pythonhosted.org/packages/34/2f/ff2fcc98f500713368d8b650e1bbc4a0b3ebcdd3e050dcdaad5f5a13fd7e/fastapi-0.125.0-py3-none-any.whl", upload-time = 2025-12-17T21:41:41Z, size = 112888, hashes = { sha256 = "2570ec4f3aecf5cca8f0428aed2398b774fcdfee6c2116f86e80513f2f86a7a1" } }]
+
+[[packages]]
+name = "idna"
+version = "3.18"
+wheels = [{ url = "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl", upload-time = 2026-06-02T14:34:06Z, size = 65455, hashes = { sha256 = "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2" } }]
+
+[[packages]]
+name = "pydantic"
+version = "1.10.26"
+wheels = [{ url = "https://files.pythonhosted.org/packages/1f/98/556e82f00b98486def0b8af85da95e69d2be7e367cf2431408e108bc3095/pydantic-1.10.26-py3-none-any.whl", upload-time = 2025-12-18T15:47:44Z, size = 166975, hashes = { sha256 = "c43ad70dc3ce7787543d563792426a16fd7895e14be4b194b5665e36459dd917" } }]
+
+[[packages]]
+name = "pydantic-core"
+version = "0.0.1"
+wheels = [{ url = "https://files.pythonhosted.org/packages/b6/32/e6a668a0b572fbc062ddc64955fcfca35dbe4f1ee3b80314833a3f1d38ec/pydantic_core-0.0.1-py3-none-any.whl", upload-time = 2022-04-20T16:59:51Z, size = 1188, hashes = { sha256 = "c3d805e96e72747afc24a2df1253401a1279a57745e3cca88307de7054939d39" } }]
+
+[[packages]]
+name = "starlette"
+version = "0.50.0"
+wheels = [{ url = "https://files.pythonhosted.org/packages/d9/52/1064f510b141bd54025f9b55105e26d1fa970b9be67ad766380a3c9b74b0/starlette-0.50.0-py3-none-any.whl", upload-time = 2025-11-01T15:25:25Z, size = 74033, hashes = { sha256 = "9e5391843ec9b6e472eed1365a78c8098cfceb7a74bfd4d6b1c0c0095efb3bca" } }]
+
+[[packages]]
+name = "typing-extensions"
+version = "4.16.0"
+wheels = [{ url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", upload-time = 2026-07-02T08:40:04Z, size = 45571, hashes = { sha256 = "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8" } }]
+
+[[packages]]
+name = "workers-runtime-sdk"
+version = "1.6.6"
+wheels = [{ url = "https://files.pythonhosted.org/packages/56/20/458ece6a6b375e07af791beeb7be6e08e85e8e823aaf5cdb92f8f00eaebe/workers_runtime_sdk-1.6.6-py3-none-any.whl", upload-time = 2026-08-03T07:23:18Z, size = 32657, hashes = { sha256 = "9c337f829816d46e26982cff768c4c8d623d77dc1360e7f3517544135ee963e3" } }]
